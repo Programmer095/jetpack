@@ -1,4 +1,4 @@
-/* global jQuery, jpSimplePaymentsStrings */
+/* global jQuery, jpSimplePaymentsStrings, wp, analytics */
 /* eslint no-var: 0, quote-props: 0 */
 
 ( function( api, wp, $ ) {
@@ -206,6 +206,10 @@
 		return function( event ) {
 			event.preventDefault();
 			var productPostId = widgetForm.find( '.jetpack-simple-payments-form-product-id' ).val();
+			var productPrice = widgetForm.find( '.jetpack-simple-payments-form-product-price' ).val();
+			var productCurrency = widgetForm.find( '.jetpack-simple-payments-form-product-currency' ).val();
+
+			var formAction = widgetForm.find( '.jetpack-simple-payments-form-action' ).val();
 
 			if ( ! isFormValid( widgetForm ) ) {
 				return;
@@ -219,8 +223,8 @@
 					'post_title': widgetForm.find( '.jetpack-simple-payments-form-product-title' ).val(),
 					'post_content': widgetForm.find( '.jetpack-simple-payments-form-product-description' ).val(),
 					'image_id': widgetForm.find( '.jetpack-simple-payments-form-image-id' ).val(),
-					'currency': widgetForm.find( '.jetpack-simple-payments-form-product-currency' ).val(),
-					'price': widgetForm.find( '.jetpack-simple-payments-form-product-price' ).val(),
+					'currency': productCurrency,
+					'price': productPrice,
 					'multiple': widgetForm.find( '.jetpack-simple-payments-form-product-multiple' ).is( ':checked' ) ? 1 : 0,
 					'email': widgetForm.find( '.jetpack-simple-payments-form-product-email' ).val(),
 				}
@@ -229,6 +233,17 @@
 			request.done( function( data ) {
 				var select = widgetForm.find( 'select.jetpack-simple-payments-products' );
 				var productOption = select.find( 'option[value="' + productPostId + '"]' );
+
+				var tracksProperties = {
+					price: productPrice,
+					currency: productCurrency,
+					id: data.product_post_id,
+				};
+				if ( 'add' === formAction ) {
+					recordEvent( 'button_created', 'create', tracksProperties );
+				} else {
+					recordEvent( 'button_updated', 'update', tracksProperties );
+				}
 
 				if ( productOption.length > 0	) {
 					productOption.text( data.product_post_title );
@@ -286,9 +301,19 @@
 				var productList = widgetForm.find( 'select.jetpack-simple-payments-products' )[ 0 ];
 				productList.remove( productList.selectedIndex );
 				productList.dispatchEvent( new Event( 'change' ) );
+				recordEvent( 'button_deleted', 'delete', { id: formProductId } );
 				changeFormAction( widgetForm, 'clear' );
 				hideForm( widgetForm );
 			} );
 		};
+	}
+
+	function recordEvent( statName, eventAction, eventProperties ) {
+		if ( ! eventAction || ! statName || ! analytics || ! analytics.tracks || ! analytics.mc ) {
+			return;
+		}
+		eventProperties = eventProperties || {};
+		analytics.mc.bumpStat( 'simple_payments', statName );
+		analytics.tracks.recordEvent( 'jetpack_simple_payments_button_' + eventAction, eventProperties );
 	}
 }( wp.customize, wp, jQuery ) );
